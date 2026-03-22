@@ -1,4 +1,11 @@
-Gemfile.lock
-coverage/
+/.bundle/
+/.yardoc
+/_yardoc/
+/coverage/
+/doc/
+/pkg/
+/spec/reports/
+/tmp/
+*.gem
 .rspec_status
-pkg/
+Gemfile.lock
