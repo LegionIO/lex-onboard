@@ -4,41 +4,35 @@ require 'bundler/setup'
 require 'simplecov'
 SimpleCov.start
 
+require 'legion/logging'
+require 'legion/settings'
+require 'legion/cache/helper'
+require 'legion/crypt/helper'
+require 'legion/data/helper'
+require 'legion/json/helper'
+require 'legion/transport/helper'
+
 module Legion
-  module Logging
-    def self.debug(_msg); end
-
-    def self.info(_msg); end
-
-    def self.warn(_msg); end
-
-    def self.error(_msg); end
-  end
-
   module Extensions
-    module Core; end
+    module Helpers
+      module Lex
+        include Legion::Logging::Helper
+        include Legion::Settings::Helper
+        include Legion::Cache::Helper
+        include Legion::Crypt::Helper
+        include Legion::Data::Helper
+        include Legion::JSON::Helper
+        include Legion::Transport::Helper
+      end
+    end
 
     module Actors
-      class Every; end
-
-      class Subscription; end
-    end
-  end
-
-  module Settings
-    @store = {}
-
-    class << self
-      def [](key)
-        @store[key.to_sym] ||= {}
+      class Every
+        include Helpers::Lex
       end
 
-      def []=(key, val)
-        @store[key.to_sym] = val
-      end
-
-      def reset!
-        @store = {}
+      class Subscription
+        include Helpers::Lex
       end
     end
   end
