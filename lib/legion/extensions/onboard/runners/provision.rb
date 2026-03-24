@@ -53,7 +53,7 @@ module Legion
             return true unless webhook && defined?(Legion::Extensions::Slack::Client)
 
             Legion::Extensions::Slack::Client.new.send_webhook(
-              webhook: webhook, text: "Onboarding complete for #{askid}"
+              webhook: webhook, message: "Onboarding complete for #{askid}"
             )
           rescue StandardError
             true

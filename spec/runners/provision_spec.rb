@@ -114,5 +114,25 @@ RSpec.describe Legion::Extensions::Onboard::Runners::Provision do
         expect(notify_step[:status]).to eq('ok')
       end
     end
+
+    context 'notification step sends correct parameters' do
+      let(:slack_client) { double('slack_client') }
+
+      before do
+        stub_const('Legion::Extensions::Slack::Client', Class.new)
+        allow(Legion::Extensions::Slack::Client).to receive(:new).and_return(slack_client)
+        allow(slack_client).to receive(:send_webhook)
+        allow(provisioner).to receive(:create_vault_namespace).and_return({ result: true })
+        allow(provisioner).to receive(:create_consul_partition).and_return({ result: true })
+        allow(provisioner).to receive(:create_tfe_project).and_return({ result: true })
+      end
+
+      it 'calls send_webhook with message: parameter' do
+        provisioner.provision(askid: 'test-app', requester_slack_webhook: 'https://hooks.slack.com/test')
+        expect(slack_client).to have_received(:send_webhook).with(
+          hash_including(message: anything, webhook: 'https://hooks.slack.com/test')
+        )
+      end
+    end
   end
 end
