@@ -7,24 +7,61 @@ module Legion
         module Provision
           include Validator
 
+          ROLLBACK_ACTIONS = {
+            vault_namespace: ->(client, askid) { client.delete_namespace(name: askid) },
+            consul_partition: ->(client, askid) { client.delete_partition(name: askid) },
+            tfe_project: ->(client, askid) { client.delete_project(name: askid) }
+          }.freeze
+
           def provision(askid:, tfe_organization: 'terraform.uhg.com', requester_slack_webhook: nil, **)
+            completed_steps = []
             steps = []
 
-            steps << vault_namespace(askid: askid)
-            steps << consul_partition(askid: askid)
-            steps << tfe_project(askid: askid, organization: tfe_organization)
+            %i[vault_namespace consul_partition tfe_project].each do |step_name|
+              result = run_step(step_name, askid: askid, tfe_organization: tfe_organization)
+              steps << result
 
-            failed = steps.any? { |s| s[:status] == 'error' }
+              if result[:status] == 'error'
+                rollback_results = rollback(completed_steps, askid: askid)
+                return { status: 'failed', askid: askid, steps: steps, rollback: rollback_results }
+              end
+
+              completed_steps << step_name if result[:status] == 'completed'
+            end
+
             notify_requester(askid: askid, webhook: requester_slack_webhook) if requester_slack_webhook
-
-            {
-              status: failed ? 'failed' : 'completed',
-              askid: askid,
-              steps: steps
-            }
+            { status: 'completed', askid: askid, steps: steps, rollback: [] }
           end
 
           private
+
+          def run_step(step_name, askid:, tfe_organization:)
+            case step_name
+            when :vault_namespace then vault_namespace(askid: askid)
+            when :consul_partition then consul_partition(askid: askid)
+            when :tfe_project then tfe_project(askid: askid, organization: tfe_organization)
+            end
+          end
+
+          def rollback(completed_steps, askid:)
+            completed_steps.reverse.map do |step_name|
+              action = ROLLBACK_ACTIONS[step_name]
+              next unless action
+
+              action.call(client_for_step(step_name), askid)
+              { step: step_name, status: 'rolled_back' }
+            rescue StandardError => e
+              { step: step_name, status: 'rollback_failed', error: e.message }
+            end.compact
+          end
+
+          def client_for_step(step_name)
+            case step_name
+            when :vault_namespace then vault_client
+            when :consul_partition then consul_client
+            when :tfe_project then tfe_client
+            end
+          end
 
           def vault_namespace(askid:)
             return { step: :vault_namespace, status: 'skipped', reason: 'vault unavailable' } unless defined?(Legion::Extensions::Vault::Client)

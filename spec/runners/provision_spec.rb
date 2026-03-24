@@ -28,6 +28,7 @@ RSpec.describe Legion::Extensions::Onboard::Runners::Provision do
         result = provisioner.provision(askid: 'app-12345')
         expect(result[:steps].size).to eq(3)
         expect(result[:steps].all? { |s| s[:status] == 'completed' }).to be true
+        expect(result[:rollback]).to eq([])
       end
     end
 
@@ -51,10 +52,11 @@ RSpec.describe Legion::Extensions::Onboard::Runners::Provision do
         expect(vault_step[:error]).to include('Vault 403')
       end
 
-      it 'still attempts remaining steps' do
+      it 'exits after the failed step without running remaining steps' do
         result = provisioner.provision(askid: 'app-12345')
         consul_step = result[:steps].find { |s| s[:step] == :consul_partition }
-        expect(consul_step[:status]).to eq('completed')
+        expect(consul_step).to be_nil
+        expect(result[:rollback]).to eq([])
       end
     end
 
@@ -131,6 +133,42 @@ RSpec.describe Legion::Extensions::Onboard::Runners::Provision do
         expect(slack_client).to have_received(:send_webhook).with(
           hash_including(message: anything, webhook: 'https://hooks.slack.com/test')
         )
+      end
+    end
+
+    context 'when tfe_project step fails' do
+      let(:vault_client) { double('vault_client') }
+      let(:consul_client) { double('consul_client') }
+      let(:tfe_client) { double('tfe_client') }
+
+      before do
+        stub_const('Legion::Extensions::Vault::Client', Class.new)
+        stub_const('Legion::Extensions::Consul::Client', Class.new)
+        stub_const('Legion::Extensions::Tfe::Client', Class.new)
+        allow(Legion::Extensions::Vault::Client).to receive(:new).and_return(vault_client)
+        allow(Legion::Extensions::Consul::Client).to receive(:new).and_return(consul_client)
+        allow(Legion::Extensions::Tfe::Client).to receive(:new).and_return(tfe_client)
+        allow(vault_client).to receive(:list_namespaces).and_return({ namespaces: [] })
+        allow(vault_client).to receive(:create_namespace).and_return({ success: true })
+        allow(vault_client).to receive(:delete_namespace)
+        allow(consul_client).to receive(:list_partitions).and_return({ partitions: [] })
+        allow(consul_client).to receive(:create_partition).and_return({ success: true })
+        allow(consul_client).to receive(:delete_partition)
+        allow(tfe_client).to receive(:list_projects).and_return({ projects: [] })
+        allow(tfe_client).to receive(:create_project).and_raise(StandardError, 'TFE API error')
+        allow(provisioner).to receive(:notify_requester).and_return(true)
+      end
+
+      it 'returns failed status' do
+        result = provisioner.provision(askid: 'test-app')
+        expect(result[:status]).to eq('failed')
+      end
+
+      it 'rolls back consul partition and vault namespace' do
+        result = provisioner.provision(askid: 'test-app')
+        expect(result[:rollback]).not_to be_empty
+        expect(consul_client).to have_received(:delete_partition)
+        expect(vault_client).to have_received(:delete_namespace)
       end
     end
 
