@@ -172,6 +172,28 @@ RSpec.describe Legion::Extensions::Onboard::Runners::Provision do
       end
     end
 
+    context 'with invalid askid' do
+      it 'rejects without attempting any steps' do
+        result = provisioner.provision(askid: 'INVALID_APP')
+        expect(result[:status]).to eq('rejected')
+        expect(result[:reason]).to include('format')
+      end
+    end
+
+    context 'with conflicting askid' do
+      before do
+        allow(provisioner).to receive(:check_conflicts).and_return(
+          { conflicts: [:vault], askid: 'existing-app' }
+        )
+      end
+
+      it 'rejects with conflict details' do
+        result = provisioner.provision(askid: 'existing-app')
+        expect(result[:status]).to eq('rejected')
+        expect(result[:reason]).to include('conflict')
+      end
+    end
+
     context 'when vault namespace already exists' do
       let(:vault_client) { double('vault_client') }
 
@@ -180,6 +202,7 @@ RSpec.describe Legion::Extensions::Onboard::Runners::Provision do
         allow(Legion::Extensions::Vault::Client).to receive(:new).and_return(vault_client)
         allow(vault_client).to receive(:list_namespaces).and_return({ namespaces: ['test-app'] })
         allow(vault_client).to receive(:create_namespace)
+        allow(provisioner).to receive(:check_conflicts).and_return({ conflicts: [], askid: 'test-app' })
         allow(provisioner).to receive(:consul_partition).and_return({ step: :consul_partition, status: 'completed' })
         allow(provisioner).to receive(:tfe_project).and_return({ step: :tfe_project, status: 'completed' })
         allow(provisioner).to receive(:notify_requester).and_return(true)

@@ -14,6 +14,14 @@ module Legion
           }.freeze
 
           def provision(askid:, tfe_organization: 'terraform.uhg.com', requester_slack_webhook: nil, **)
+            validation = validate_askid(askid: askid)
+            return { status: 'rejected', askid: askid, reason: validation[:reason] } unless validation[:valid]
+
+            conflicts = check_conflicts(askid: askid)
+            unless conflicts[:conflicts].empty?
+              return { status: 'rejected', askid: askid, reason: "conflict in: #{conflicts[:conflicts].join(', ')}" }
+            end
+
             completed_steps = []
             steps = []
 
