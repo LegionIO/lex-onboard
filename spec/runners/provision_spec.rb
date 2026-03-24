@@ -34,7 +34,8 @@ RSpec.describe Legion::Extensions::Onboard::Runners::Provision do
 
     context 'when vault namespace creation fails' do
       before do
-        allow(provisioner).to receive(:vault_namespace).and_return({ step: :vault_namespace, status: 'error', error: 'Vault 403' })
+        allow(provisioner).to receive(:vault_namespace).and_return({ step: :vault_namespace, status: 'error',
+                                                                     error: 'Vault 403' })
         allow(provisioner).to receive(:consul_partition).and_return({ step: :consul_partition, status: 'completed' })
         allow(provisioner).to receive(:tfe_project).and_return({ step: :tfe_project, status: 'completed' })
         allow(provisioner).to receive(:notify_requester).and_return(true)
@@ -63,7 +64,8 @@ RSpec.describe Legion::Extensions::Onboard::Runners::Provision do
     context 'when consul partition creation fails' do
       before do
         allow(provisioner).to receive(:vault_namespace).and_return({ step: :vault_namespace, status: 'completed' })
-        allow(provisioner).to receive(:consul_partition).and_return({ step: :consul_partition, status: 'error', error: 'Consul 500' })
+        allow(provisioner).to receive(:consul_partition).and_return({ step: :consul_partition, status: 'error',
+                                                                      error: 'Consul 500' })
         allow(provisioner).to receive(:tfe_project).and_return({ step: :tfe_project, status: 'completed' })
         allow(provisioner).to receive(:notify_requester).and_return(true)
       end

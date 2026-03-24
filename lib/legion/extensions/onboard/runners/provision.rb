@@ -72,7 +72,9 @@ module Legion
           end
 
           def vault_namespace(askid:)
-            return { step: :vault_namespace, status: 'skipped', reason: 'vault unavailable' } unless defined?(Legion::Extensions::Vault::Client)
+            unless defined?(Legion::Extensions::Vault::Client)
+              return { step: :vault_namespace, status: 'skipped', reason: 'vault unavailable' }
+            end
             return { step: :vault_namespace, status: 'skipped', reason: 'already exists' } if vault_exists?(askid)
 
             vault_client.create_namespace(name: askid)
@@ -82,7 +84,9 @@ module Legion
           end
 
           def consul_partition(askid:)
-            return { step: :consul_partition, status: 'skipped', reason: 'consul unavailable' } unless defined?(Legion::Extensions::Consul::Client)
+            unless defined?(Legion::Extensions::Consul::Client)
+              return { step: :consul_partition, status: 'skipped', reason: 'consul unavailable' }
+            end
             return { step: :consul_partition, status: 'skipped', reason: 'already exists' } if consul_exists?(askid)
 
             consul_client.create_partition(name: askid)
@@ -92,7 +96,9 @@ module Legion
           end
 
           def tfe_project(askid:, organization:)
-            return { step: :tfe_project, status: 'skipped', reason: 'tfe unavailable' } unless defined?(Legion::Extensions::Tfe::Client)
+            unless defined?(Legion::Extensions::Tfe::Client)
+              return { step: :tfe_project, status: 'skipped', reason: 'tfe unavailable' }
+            end
             return { step: :tfe_project, status: 'skipped', reason: 'already exists' } if tfe_exists?(askid)
 
             tfe_client.create_project(organization: organization, name: askid)

@@ -11,7 +11,11 @@ module Legion
           def validate_askid(askid:)
             return { valid: false, reason: 'askid is empty' } if askid.nil? || askid.empty?
             return { valid: false, reason: "askid exceeds #{MAX_ASKID_LENGTH} characters" } if askid.length > MAX_ASKID_LENGTH
-            return { valid: false, reason: 'askid format invalid — must be lowercase alphanumeric with hyphens' } unless askid.match?(ASKID_PATTERN)
+
+            unless askid.match?(ASKID_PATTERN)
+              return { valid: false,
+                       reason: 'askid format invalid — must be lowercase alphanumeric with hyphens' }
+            end
 
             { valid: true }
           end
