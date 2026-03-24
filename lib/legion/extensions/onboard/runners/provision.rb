@@ -5,15 +5,17 @@ module Legion
     module Onboard
       module Runners
         module Provision
+          include Validator
+
           def provision(askid:, tfe_organization: 'terraform.uhg.com', requester_slack_webhook: nil, **)
             steps = []
 
-            steps << run_step('vault_namespace') { create_vault_namespace(name: askid) }
-            steps << run_step('consul_partition') { create_consul_partition(name: askid) }
-            steps << run_step('tfe_project') { create_tfe_project(name: askid, organization: tfe_organization) }
-            steps << run_step('notify') { notify_requester(askid: askid, webhook: requester_slack_webhook) }
+            steps << vault_namespace(askid: askid)
+            steps << consul_partition(askid: askid)
+            steps << tfe_project(askid: askid, organization: tfe_organization)
 
             failed = steps.any? { |s| s[:status] == 'error' }
+            notify_requester(askid: askid, webhook: requester_slack_webhook) if requester_slack_webhook
 
             {
               status: failed ? 'failed' : 'completed',
@@ -24,29 +26,46 @@ module Legion
 
           private
 
-          def run_step(name)
-            yield
-            { name: name, status: 'ok' }
+          def vault_namespace(askid:)
+            return { step: :vault_namespace, status: 'skipped', reason: 'vault unavailable' } unless defined?(Legion::Extensions::Vault::Client)
+            return { step: :vault_namespace, status: 'skipped', reason: 'already exists' } if vault_exists?(askid)
+
+            vault_client.create_namespace(name: askid)
+            { step: :vault_namespace, status: 'completed', askid: askid }
           rescue StandardError => e
-            { name: name, status: 'error', error: e.message }
+            { step: :vault_namespace, status: 'error', error: e.message }
           end
 
-          def create_vault_namespace(name:)
-            return { result: false } unless defined?(Legion::Extensions::Vault::Client)
+          def consul_partition(askid:)
+            return { step: :consul_partition, status: 'skipped', reason: 'consul unavailable' } unless defined?(Legion::Extensions::Consul::Client)
+            return { step: :consul_partition, status: 'skipped', reason: 'already exists' } if consul_exists?(askid)
 
-            Legion::Extensions::Vault::Client.new.create_namespace(name: name)
+            consul_client.create_partition(name: askid)
+            { step: :consul_partition, status: 'completed', askid: askid }
+          rescue StandardError => e
+            { step: :consul_partition, status: 'error', error: e.message }
           end
 
-          def create_consul_partition(name:)
-            return { result: false } unless defined?(Legion::Extensions::Consul::Client)
+          def tfe_project(askid:, organization:)
+            return { step: :tfe_project, status: 'skipped', reason: 'tfe unavailable' } unless defined?(Legion::Extensions::Tfe::Client)
+            return { step: :tfe_project, status: 'skipped', reason: 'already exists' } if tfe_exists?(askid)
 
-            Legion::Extensions::Consul::Client.new.create_partition(name: name)
+            tfe_client.create_project(organization: organization, name: askid)
+            { step: :tfe_project, status: 'completed', askid: askid }
+          rescue StandardError => e
+            { step: :tfe_project, status: 'error', error: e.message }
           end
 
-          def create_tfe_project(name:, organization:)
-            return { result: false } unless defined?(Legion::Extensions::Tfe::Client)
+          def vault_client
+            Legion::Extensions::Vault::Client.new
+          end
 
-            Legion::Extensions::Tfe::Client.new.create_project(organization: organization, name: name)
+          def consul_client
+            Legion::Extensions::Consul::Client.new
+          end
+
+          def tfe_client
+            Legion::Extensions::Tfe::Client.new
           end
 
           def notify_requester(askid:, webhook: nil)
