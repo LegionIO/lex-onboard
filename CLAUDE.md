@@ -11,7 +11,7 @@ Automated team onboarding for LegionIO. Provisions three infrastructure resource
 ## Gem Info
 
 - **Gem name**: `lex-onboard`
-- **Version**: `0.1.0`
+- **Version**: `0.2.0`
 - **Module**: `Legion::Extensions::Onboard`
 - **Ruby**: `>= 3.4`
 - **License**: MIT
