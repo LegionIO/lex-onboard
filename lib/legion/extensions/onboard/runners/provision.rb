@@ -5,12 +5,13 @@ module Legion
     module Onboard
       module Runners
         module Provision
+          extend self
           include Validator
 
           ROLLBACK_ACTIONS = {
-            vault_namespace: ->(client, askid) { client.delete_namespace(name: askid) },
+            vault_namespace:  ->(client, askid) { client.delete_namespace(name: askid) },
             consul_partition: ->(client, askid) { client.delete_partition(name: askid) },
-            tfe_project: ->(client, askid) { client.delete_project(name: askid) }
+            tfe_project:      ->(client, askid) { client.delete_project(name: askid) }
           }.freeze
 
           def provision(askid:, tfe_organization: 'terraform.uhg.com', requester_slack_webhook: nil, **)
@@ -18,9 +19,7 @@ module Legion
             return { status: 'rejected', askid: askid, reason: validation[:reason] } unless validation[:valid]
 
             conflicts = check_conflicts(askid: askid)
-            unless conflicts[:conflicts].empty?
-              return { status: 'rejected', askid: askid, reason: "conflict in: #{conflicts[:conflicts].join(', ')}" }
-            end
+            return { status: 'rejected', askid: askid, reason: "conflict in: #{conflicts[:conflicts].join(', ')}" } unless conflicts[:conflicts].empty?
 
             completed_steps = []
             steps = []
@@ -52,7 +51,7 @@ module Legion
           end
 
           def rollback(completed_steps, askid:)
-            completed_steps.reverse.map do |step_name|
+            completed_steps.reverse.filter_map do |step_name|
               action = ROLLBACK_ACTIONS[step_name]
               next unless action
 
@@ -60,7 +59,7 @@ module Legion
               { step: step_name, status: 'rolled_back' }
             rescue StandardError => e
               { step: step_name, status: 'rollback_failed', error: e.message }
-            end.compact
+            end
           end
 
           def client_for_step(step_name)
@@ -72,9 +71,7 @@ module Legion
           end
 
           def vault_namespace(askid:)
-            unless defined?(Legion::Extensions::Vault::Client)
-              return { step: :vault_namespace, status: 'skipped', reason: 'vault unavailable' }
-            end
+            return { step: :vault_namespace, status: 'skipped', reason: 'vault unavailable' } unless defined?(Legion::Extensions::Vault::Client)
             return { step: :vault_namespace, status: 'skipped', reason: 'already exists' } if vault_exists?(askid)
 
             vault_client.create_namespace(name: askid)
@@ -84,9 +81,7 @@ module Legion
           end
 
           def consul_partition(askid:)
-            unless defined?(Legion::Extensions::Consul::Client)
-              return { step: :consul_partition, status: 'skipped', reason: 'consul unavailable' }
-            end
+            return { step: :consul_partition, status: 'skipped', reason: 'consul unavailable' } unless defined?(Legion::Extensions::Consul::Client)
             return { step: :consul_partition, status: 'skipped', reason: 'already exists' } if consul_exists?(askid)
 
             consul_client.create_partition(name: askid)
@@ -96,9 +91,7 @@ module Legion
           end
 
           def tfe_project(askid:, organization:)
-            unless defined?(Legion::Extensions::Tfe::Client)
-              return { step: :tfe_project, status: 'skipped', reason: 'tfe unavailable' }
-            end
+            return { step: :tfe_project, status: 'skipped', reason: 'tfe unavailable' } unless defined?(Legion::Extensions::Tfe::Client)
             return { step: :tfe_project, status: 'skipped', reason: 'already exists' } if tfe_exists?(askid)
 
             tfe_client.create_project(organization: organization, name: askid)
@@ -120,12 +113,12 @@ module Legion
           end
 
           def notify_requester(askid:, webhook: nil)
-            return true unless webhook && defined?(Legion::Extensions::Slack::Client)
+            return true unless webhook && defined?(Legion::Extensions::Slack::Client) # rubocop:disable Legion/Extension/RunnerReturnHash
 
             Legion::Extensions::Slack::Client.new.send_webhook(
               webhook: webhook, message: "Onboarding complete for #{askid}"
             )
-          rescue StandardError
+          rescue StandardError => _e
             true
           end
         end
