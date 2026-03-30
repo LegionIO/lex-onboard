@@ -5,6 +5,8 @@ module Legion
     module Onboard
       module Runners
         module Validator
+          extend self
+
           ASKID_PATTERN = /\A[a-z0-9]([a-z0-9-]*[a-z0-9])?\z/
           MAX_ASKID_LENGTH = 63
 
@@ -13,7 +15,7 @@ module Legion
             return { valid: false, reason: "askid exceeds #{MAX_ASKID_LENGTH} characters" } if askid.length > MAX_ASKID_LENGTH
 
             unless askid.match?(ASKID_PATTERN)
-              return { valid: false,
+              return { valid:  false,
                        reason: 'askid format invalid — must be lowercase alphanumeric with hyphens' }
             end
 
@@ -32,26 +34,26 @@ module Legion
           private
 
           def vault_exists?(askid)
-            return false unless defined?(Legion::Extensions::Vault::Client)
+            return false unless defined?(Legion::Extensions::Vault::Client) # rubocop:disable Legion/Extension/RunnerReturnHash
 
             Legion::Extensions::Vault::Client.new.list_namespaces[:namespaces]&.include?(askid)
-          rescue StandardError
+          rescue StandardError => _e
             false
           end
 
           def consul_exists?(askid)
-            return false unless defined?(Legion::Extensions::Consul::Client)
+            return false unless defined?(Legion::Extensions::Consul::Client) # rubocop:disable Legion/Extension/RunnerReturnHash
 
             Legion::Extensions::Consul::Client.new.list_partitions[:partitions]&.any? { |p| p[:name] == askid }
-          rescue StandardError
+          rescue StandardError => _e
             false
           end
 
           def tfe_exists?(askid)
-            return false unless defined?(Legion::Extensions::Tfe::Client)
+            return false unless defined?(Legion::Extensions::Tfe::Client) # rubocop:disable Legion/Extension/RunnerReturnHash
 
             Legion::Extensions::Tfe::Client.new.list_projects[:projects]&.any? { |p| p[:name] == askid }
-          rescue StandardError
+          rescue StandardError => _e
             false
           end
         end

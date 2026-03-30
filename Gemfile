@@ -6,4 +6,5 @@ gemspec
 
 gem 'rspec'
 gem 'rubocop'
+gem 'rubocop-legion', '~> 0.1'
 gem 'simplecov'
